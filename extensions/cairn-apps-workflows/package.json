@@ -1,0 +1,9 @@
+{
+  "name": "pi-cairn-apps-workflows",
+  "private": true,
+  "type": "module",
+  "description": "pi extension for authoring, running, and observing Cairn apps-daemon (appsd) workflows",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

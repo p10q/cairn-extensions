@@ -1,0 +1,9 @@
+{
+  "name": "pi-cairn-spawn",
+  "private": true,
+  "type": "module",
+  "description": "pi extension for spawning new pi sessions in Cairn tabs/splits via OSC 7727",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "pi-cairn-companion",
+  "private": true,
+  "type": "module",
+  "description": "pi extension for driving Cairn's companion browser pane via CDP/IPC",
+  "dependencies": {
+    "playwright-core": "^1.55.0",
+    "@types/node": "^22.0.0"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+/**
+ * cairn-extensions — install / uninstall / status CLI.
+ *
+ * Drops the bundled extension dirs into ~/.pi/agent/extensions/ so pi
+ * picks them up. Idempotent: re-running upgrades existing installs by
+ * archiving any user-edited copies as <name>.pre-upgrade.<timestamp>/
+ * before overwriting.
+ *
+ * Usage:
+ *   cairn-extensions install            # copy/upgrade all 4
+ *   cairn-extensions install <name>...  # subset
+ *   cairn-extensions uninstall          # remove all 4 (archives, doesn't delete)
+ *   cairn-extensions status             # show what's installed and the version
+ *   cairn-extensions list               # list bundled extensions
+ *
+ * Pi state (~/.pi) is owned by pi. Cairn-extensions only writes inside
+ * ~/.pi/agent/extensions/<our-known-names>/. Never anywhere else.
+ */
+
+import { readFileSync, existsSync, mkdirSync, cpSync, renameSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// bin/ lives next to extensions/ in the published package.
+const PKG_ROOT = resolve(__dirname, "..");
+const EXTENSIONS_SRC = join(PKG_ROOT, "extensions");
+const PKG_JSON = JSON.parse(readFileSync(join(PKG_ROOT, "package.json"), "utf8"));
+const PKG_VERSION = PKG_JSON.version;
+
+const PI_AGENT_DIR = process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+const PI_EXT_DIR = join(PI_AGENT_DIR, "extensions");
+const VERSION_MARKER = ".cairn-extensions-version";
+
+const KNOWN_EXTENSIONS = ["cairn-tab-status", "cairn-apps-workflows", "cairn-companion", "cairn-spawn"];
+
+// Legacy names this installer used to ship under. When a legacy dir exists
+// in the user's ~/.pi/agent/extensions/ from an older install, the installer
+// archives it as <name>.pre-rename.<timestamp>/ on first run so it doesn't
+// race with the new cairn-prefixed install. Pi never reads two extensions
+// from two different dirs that resolve to the same module name; renaming
+// without archiving the old dir would leave a stale duplicate.
+const LEGACY_RENAMES = {
+	"tab-status": "cairn-tab-status",
+	"apps-workflows": "cairn-apps-workflows",
+	"ghostty-companion": "cairn-companion",
+	"ghostty-spawn": "cairn-spawn",
+};
+
+function timestamp() {
+	const d = new Date();
+	const pad = (n) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function readMarker(extDir) {
+	const p = join(extDir, VERSION_MARKER);
+	if (!existsSync(p)) return null;
+	try { return readFileSync(p, "utf8").trim(); } catch { return null; }
+}
+
+function writeMarker(extDir, version) {
+	writeFileSync(join(extDir, VERSION_MARKER), version + "\n");
+}
+
+function listSrcExtensions() {
+	if (!existsSync(EXTENSIONS_SRC)) return [];
+	return readdirSync(EXTENSIONS_SRC)
+		.filter((n) => statSync(join(EXTENSIONS_SRC, n)).isDirectory());
+}
+
+function archiveLegacyDirs() {
+	if (!existsSync(PI_EXT_DIR)) return;
+	for (const [oldName, newName] of Object.entries(LEGACY_RENAMES)) {
+		const oldPath = join(PI_EXT_DIR, oldName);
+		if (!existsSync(oldPath)) continue;
+		const archive = `${oldPath}.pre-rename.${timestamp()}`;
+		renameSync(oldPath, archive);
+		console.log(`[cairn-extensions] archived legacy ${oldName}/ -> ${archive} (replaced by ${newName})`);
+	}
+}
+
+function installOne(name) {
+	const src = join(EXTENSIONS_SRC, name);
+	const dst = join(PI_EXT_DIR, name);
+	if (!existsSync(src)) {
+		console.error(`[cairn-extensions] unknown extension: ${name}`);
+		return false;
+	}
+
+	mkdirSync(PI_EXT_DIR, { recursive: true });
+
+	if (existsSync(dst)) {
+		const installed = readMarker(dst);
+		if (installed === PKG_VERSION) {
+			console.log(`[cairn-extensions] ${name}: already at v${PKG_VERSION} (skip)`);
+			return true;
+		}
+		const archive = `${dst}.pre-upgrade.${timestamp()}`;
+		renameSync(dst, archive);
+		console.log(`[cairn-extensions] ${name}: archived prior install at ${archive}`);
+	}
+
+	cpSync(src, dst, { recursive: true });
+	writeMarker(dst, PKG_VERSION);
+	console.log(`[cairn-extensions] ${name}: installed v${PKG_VERSION} at ${dst}`);
+	return true;
+}
+
+function uninstallOne(name) {
+	const dst = join(PI_EXT_DIR, name);
+	if (!existsSync(dst)) {
+		console.log(`[cairn-extensions] ${name}: not installed (skip)`);
+		return true;
+	}
+	const archive = `${dst}.pre-uninstall.${timestamp()}`;
+	renameSync(dst, archive);
+	console.log(`[cairn-extensions] ${name}: archived at ${archive}`);
+	return true;
+}
+
+function statusOne(name) {
+	const dst = join(PI_EXT_DIR, name);
+	if (!existsSync(dst)) {
+		return { name, installed: false };
+	}
+	const installed = readMarker(dst);
+	return { name, installed: true, version: installed ?? "unknown", path: dst };
+}
+
+function pickTargets(args) {
+	if (args.length === 0) return KNOWN_EXTENSIONS;
+	const unknown = args.filter((a) => !KNOWN_EXTENSIONS.includes(a));
+	if (unknown.length > 0) {
+		console.error(`[cairn-extensions] unknown extension(s): ${unknown.join(", ")}`);
+		console.error(`[cairn-extensions] known: ${KNOWN_EXTENSIONS.join(", ")}`);
+		process.exit(2);
+	}
+	return args;
+}
+
+function help() {
+	console.log(`cairn-extensions v${PKG_VERSION}
+
+Usage:
+  cairn-extensions install [name...]    Copy extensions into ${PI_EXT_DIR}/
+  cairn-extensions uninstall [name...]  Archive (don't delete) extensions
+  cairn-extensions status [name...]     Show installed status + version
+  cairn-extensions list                 List bundled extensions
+
+Defaults to all known extensions when no names are given:
+  ${KNOWN_EXTENSIONS.join(", ")}
+
+Pi extensions dir resolves from \$PI_CODING_AGENT_DIR (default ~/.pi/agent).`);
+}
+
+function main() {
+	const [cmd, ...rest] = process.argv.slice(2);
+	switch (cmd) {
+		case "install": {
+			archiveLegacyDirs();
+			const targets = pickTargets(rest);
+			let ok = true;
+			for (const t of targets) ok = installOne(t) && ok;
+			console.log("\nNext: restart any running pi sessions to load the new extensions.");
+			process.exit(ok ? 0 : 1);
+		}
+		case "uninstall": {
+			const targets = pickTargets(rest);
+			for (const t of targets) uninstallOne(t);
+			break;
+		}
+		case "status": {
+			const targets = pickTargets(rest);
+			const rows = targets.map(statusOne);
+			console.log(`Pi extensions dir: ${PI_EXT_DIR}\n`);
+			for (const r of rows) {
+				if (r.installed) {
+					console.log(`  ✓ ${r.name.padEnd(20)} v${r.version}`);
+				} else {
+					console.log(`  · ${r.name.padEnd(20)} (not installed)`);
+				}
+			}
+			break;
+		}
+		case "list": {
+			const found = listSrcExtensions();
+			console.log(`Bundled in @p10q/cairn-extensions v${PKG_VERSION}:\n`);
+			for (const n of found) console.log(`  ${n}`);
+			break;
+		}
+		case "--version":
+		case "-v":
+			console.log(PKG_VERSION);
+			break;
+		case "--help":
+		case "-h":
+		case undefined:
+			help();
+			break;
+		default:
+			console.error(`[cairn-extensions] unknown command: ${cmd}`);
+			help();
+			process.exit(2);
+	}
+}
+
+main();

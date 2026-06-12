@@ -1,0 +1,34 @@
+{
+  "name": "@p10q/cairn-extensions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi extensions for Cairn integration: cairn-tab-status, cairn-apps-workflows, cairn-companion, cairn-spawn. Distributed via git only; not published to npm.",
+  "type": "module",
+  "bin": {
+    "cairn-extensions": "./bin/cairn-extensions.js"
+  },
+  "files": [
+    "bin/",
+    "extensions/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/p10q/cairn-extensions.git"
+  },
+  "keywords": ["cairn", "pi", "ghostty", "pi-coding-agent", "extension"],
+  "author": "p10q",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/p10q/cairn-extensions/issues"
+  },
+  "homepage": "https://github.com/p10q/cairn-extensions#readme"
+}

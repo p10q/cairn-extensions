@@ -1,0 +1,9 @@
+{
+  "name": "pi-cairn-tab-status",
+  "private": true,
+  "type": "module",
+  "description": "Emits OSC 7727 escape sequences so Cairn shows live session status in the tab title",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
