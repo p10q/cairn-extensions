@@ -5,7 +5,7 @@
   "description": "Pi extensions for Cairn integration: cairn-tab-status, cairn-apps-workflows, cairn-companion, cairn-spawn. Distributed via git only; not published to npm.",
   "type": "module",
   "bin": {
-    "cairn-extensions": "./bin/cairn-extensions.js"
+    "cairn-extensions": "./bin/cairn-extensions"
   },
   "files": [
     "bin/",
