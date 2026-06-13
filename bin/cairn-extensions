@@ -22,6 +22,7 @@ import { readFileSync, existsSync, mkdirSync, cpSync, renameSync, writeFileSync,
 import { homedir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -84,6 +85,32 @@ function archiveLegacyDirs() {
 	}
 }
 
+function hasDeps(extDir) {
+	try {
+		const pj = JSON.parse(readFileSync(join(extDir, "package.json"), "utf8"));
+		return pj.dependencies && Object.keys(pj.dependencies).length > 0;
+	} catch { return false; }
+}
+
+function installNpmDeps(extDir, name) {
+	if (!hasDeps(extDir)) return { ok: true, ran: false };
+	if (process.env.CAIRN_EXTENSIONS_SKIP_NPM === "1") {
+		console.log(`[cairn-extensions] ${name}: skipping npm install (CAIRN_EXTENSIONS_SKIP_NPM=1); run \`npm install\` in ${extDir} when ready.`);
+		return { ok: true, ran: false, skipped: true };
+	}
+	console.log(`[cairn-extensions] ${name}: installing npm dependencies...`);
+	const r = spawnSync("npm", ["install", "--silent", "--no-audit", "--no-fund"], {
+		cwd: extDir,
+		stdio: ["ignore", "inherit", "inherit"],
+	});
+	if (r.status === 0) return { ok: true, ran: true };
+	console.error(
+		`[cairn-extensions] ${name}: npm install failed (exit ${r.status}). The extension is installed but won't load until you fix npm and run\n` +
+		`  cd ${extDir} && npm install`,
+	);
+	return { ok: false, ran: true };
+}
+
 function installOne(name) {
 	const src = join(EXTENSIONS_SRC, name);
 	const dst = join(PI_EXT_DIR, name);
@@ -108,6 +135,7 @@ function installOne(name) {
 	cpSync(src, dst, { recursive: true });
 	writeMarker(dst, PKG_VERSION);
 	console.log(`[cairn-extensions] ${name}: installed v${PKG_VERSION} at ${dst}`);
+	installNpmDeps(dst, name);
 	return true;
 }
 

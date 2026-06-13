@@ -38,6 +38,14 @@ git -C ~/.cairn-extensions pull && ~/.cairn-extensions/bin/cairn-extensions inst
 
 Existing installs at the same version skip; upgrades archive the prior copy as `<name>.pre-upgrade.<timestamp>/` so nothing is lost. Legacy dirs from earlier names (`tab-status`, `apps-workflows`, `ghostty-companion`, `ghostty-spawn`) are auto-archived as `<name>.pre-rename.<timestamp>/` on first install of v0.2+ so the new `cairn-*` dirs don't race with them.
 
+### npm dependencies
+
+Some extensions (currently `cairn-companion`, which uses `playwright-core`) declare `dependencies` in their `package.json`. The installer runs `npm install` inside each such extension dir after copying. Skip via `CAIRN_EXTENSIONS_SKIP_NPM=1` if your npm config is fighting you (e.g. private registry auth) and run `npm install` manually when ready:
+
+```sh
+cd ~/.pi/agent/extensions/cairn-companion && npm install
+```
+
 Cairn's first-run wizard runs the install for you. Outside Cairn, run it manually.
 
 > **Note**: this repo is **not** published to npm. Distribution is git-only — clone the repo and run the bundled CLI. There's no `@p10q/cairn-extensions` package on the npm registry; ignore any tooling that asks for one.
