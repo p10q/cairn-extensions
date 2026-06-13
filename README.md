@@ -36,7 +36,7 @@ ln -s ~/.cairn-extensions/bin/cairn-extensions ~/.local/bin/cairn-extensions
 git -C ~/.cairn-extensions pull && ~/.cairn-extensions/bin/cairn-extensions install
 ```
 
-Existing installs at the same version skip; upgrades archive the prior copy as `<name>.pre-upgrade.<timestamp>/` so nothing is lost. Legacy dirs from earlier names (`tab-status`, `apps-workflows`, `ghostty-companion`, `ghostty-spawn`) are auto-archived as `<name>.pre-rename.<timestamp>/` on first install of v0.2+ so the new `cairn-*` dirs don't race with them.
+Existing installs at the same version skip; upgrades archive the prior copy into `~/.pi/agent/extensions-archive/<name>.pre-upgrade.<timestamp>/` so nothing is lost. Legacy dirs from earlier names (`tab-status`, `apps-workflows`, `ghostty-companion`, `ghostty-spawn`) are auto-archived to the same `extensions-archive/` dir on first install of v0.2+ so the new `cairn-*` dirs don't race with them. The archive is a sibling of `extensions/` (NOT inside it) because pi tries to load every subdir of `extensions/` and would otherwise see the archived copy and conflict on tool/flag names.
 
 ### npm dependencies
 
@@ -56,7 +56,7 @@ Cairn's first-run wizard runs the install for you. Outside Cairn, run it manuall
 ~/.cairn-extensions/bin/cairn-extensions uninstall
 ```
 
-Archives the four extension dirs as `<name>.pre-uninstall.<timestamp>/` under `~/.pi/agent/extensions/`. Then `rm -rf ~/.cairn-extensions` to remove the repo itself.
+Archives the four extension dirs as `<name>.pre-uninstall.<timestamp>/` under `~/.pi/agent/extensions-archive/`. Then `rm -rf ~/.cairn-extensions` to remove the repo itself.
 
 ## Versioning
 

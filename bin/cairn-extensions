@@ -35,16 +35,17 @@ const PKG_VERSION = PKG_JSON.version;
 
 const PI_AGENT_DIR = process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
 const PI_EXT_DIR = join(PI_AGENT_DIR, "extensions");
+const PI_EXT_ARCHIVE_DIR = join(PI_AGENT_DIR, "extensions-archive");
 const VERSION_MARKER = ".cairn-extensions-version";
 
 const KNOWN_EXTENSIONS = ["cairn-tab-status", "cairn-apps-workflows", "cairn-companion", "cairn-spawn"];
 
 // Legacy names this installer used to ship under. When a legacy dir exists
 // in the user's ~/.pi/agent/extensions/ from an older install, the installer
-// archives it as <name>.pre-rename.<timestamp>/ on first run so it doesn't
-// race with the new cairn-prefixed install. Pi never reads two extensions
-// from two different dirs that resolve to the same module name; renaming
-// without archiving the old dir would leave a stale duplicate.
+// archives it (out of the extensions tree) so it doesn't race with the new
+// cairn-prefixed install. Pi walks every subdir of extensions/ looking for
+// a package.json with pi.extensions; archived copies kept inside extensions/
+// would silently load and conflict on tool/flag names.
 const LEGACY_RENAMES = {
 	"tab-status": "cairn-tab-status",
 	"apps-workflows": "cairn-apps-workflows",
@@ -74,13 +75,19 @@ function listSrcExtensions() {
 		.filter((n) => statSync(join(EXTENSIONS_SRC, n)).isDirectory());
 }
 
+function archiveTo(dst, kind, srcLabel) {
+	mkdirSync(PI_EXT_ARCHIVE_DIR, { recursive: true });
+	const archive = join(PI_EXT_ARCHIVE_DIR, `${srcLabel}.${kind}.${timestamp()}`);
+	renameSync(dst, archive);
+	return archive;
+}
+
 function archiveLegacyDirs() {
 	if (!existsSync(PI_EXT_DIR)) return;
 	for (const [oldName, newName] of Object.entries(LEGACY_RENAMES)) {
 		const oldPath = join(PI_EXT_DIR, oldName);
 		if (!existsSync(oldPath)) continue;
-		const archive = `${oldPath}.pre-rename.${timestamp()}`;
-		renameSync(oldPath, archive);
+		const archive = archiveTo(oldPath, "pre-rename", oldName);
 		console.log(`[cairn-extensions] archived legacy ${oldName}/ -> ${archive} (replaced by ${newName})`);
 	}
 }
@@ -127,8 +134,7 @@ function installOne(name) {
 			console.log(`[cairn-extensions] ${name}: already at v${PKG_VERSION} (skip)`);
 			return true;
 		}
-		const archive = `${dst}.pre-upgrade.${timestamp()}`;
-		renameSync(dst, archive);
+		const archive = archiveTo(dst, "pre-upgrade", name);
 		console.log(`[cairn-extensions] ${name}: archived prior install at ${archive}`);
 	}
 
@@ -145,8 +151,7 @@ function uninstallOne(name) {
 		console.log(`[cairn-extensions] ${name}: not installed (skip)`);
 		return true;
 	}
-	const archive = `${dst}.pre-uninstall.${timestamp()}`;
-	renameSync(dst, archive);
+	const archive = archiveTo(dst, "pre-uninstall", name);
 	console.log(`[cairn-extensions] ${name}: archived at ${archive}`);
 	return true;
 }
